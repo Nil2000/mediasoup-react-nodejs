@@ -47,6 +47,10 @@ export default function Room() {
       }
     };
 
+    const createPeer = () => {
+      newSocket.emit("create-peer");
+    };
+
     const joinRoom = async () => {
       newSocket.emit("join-room", { roomId }, (data: any) => {
         console.log("joined room", roomId);
@@ -75,6 +79,8 @@ export default function Room() {
       console.log(`Connected with socketId: ${socketId}`);
 
       getLocalStream();
+
+      createPeer();
 
       joinRoom();
     });

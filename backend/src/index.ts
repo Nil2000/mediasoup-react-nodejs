@@ -16,15 +16,18 @@ const connections = io.of("/call");
 const userManager = new UserManager();
 
 connections.on("connection", (socket) => {
-  userManager.handleNewUser(socket);
   console.log("A user connected");
+
+  socket.on("create-peer", (data) => {
+    userManager.handlePeer(socket, data.displayName);
+  });
 
   socket.emit("connection-success", {
     socketId: socket.id,
   });
 
   socket.on("disconnect", () => {
-    userManager.removeUser(socket.id);
+    userManager.removePeer(socket.id);
     console.log("A user disconnected");
   });
 });
