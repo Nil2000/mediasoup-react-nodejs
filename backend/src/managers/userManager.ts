@@ -1,9 +1,8 @@
 import { Socket } from "socket.io";
 import { RoomManager } from "./roomManager";
 
-export interface User {
+export interface Peer {
   socket: Socket;
-  userId: string;
   displayName?: string;
   device?: string;
   transports: Map<string, any>;
@@ -12,24 +11,31 @@ export interface User {
 }
 
 export class UserManager {
-  private users: User[];
+  private peers: Map<string, Peer[]>;
   private roomManager: RoomManager;
 
   constructor() {
-    this.users = [];
+    this.peers = new Map();
     this.roomManager = new RoomManager();
     console.log("User Manager initialized");
   }
 
-  handleNewUser(socket: Socket, userId: string) {
-    const newUser = {
+  handleNewUser(socket: Socket) {
+    const newPeer: Peer = {
       socket,
-      userId,
       transports: new Map(),
       producers: new Map(),
       consumers: new Map(),
     };
-    this.users.push(newUser);
+    this.peers.set(socket.id, [newPeer]);
+    console.log("New peer connected");
+  }
+
+  removeUser(socketId: string) {
+    //Close all transports, producers and consumers
+
+    this.peers.delete(socketId);
+    console.log("Peer removed");
   }
 
   // addUserToRoom(socket: Socket, userId: string, roomId: string) {

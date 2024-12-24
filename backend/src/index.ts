@@ -7,14 +7,24 @@ const app = express();
 
 const server = http.createServer(app);
 
-const io = new Server(server);
-
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+  },
+});
+const connections = io.of("/call");
 const userManager = new UserManager();
 
-io.on("connection", (socket) => {
+connections.on("connection", (socket) => {
+  userManager.handleNewUser(socket);
   console.log("A user connected");
 
+  socket.emit("connection-success", {
+    socketId: socket.id,
+  });
+
   socket.on("disconnect", () => {
+    userManager.removeUser(socket.id);
     console.log("A user disconnected");
   });
 });
