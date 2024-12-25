@@ -17,6 +17,8 @@ export interface Room {
   peers: Peer[];
   router: Router;
   maxPeers: number;
+  transports: { socketId: string; transport: Transport; consumer: boolean }[];
+  producers: { socketId: string; producer: Producer }[];
 }
 
 const mediaCodecs: RtpCodecCapability[] = [
@@ -56,6 +58,8 @@ export class RoomManager {
       peers: [],
       router,
       maxPeers: 10,
+      transports: [],
+      producers: [],
     });
     console.log("Room created");
   }
@@ -87,14 +91,97 @@ export class RoomManager {
     }
   }
 
-  getRouterCapabilities(roomId: string) {
+  getRouter(roomId: string) {
     const room = this.getRoom(roomId);
     if (!room) {
       console.error("Room not found");
       return null;
     }
-    return room.router.rtpCapabilities;
+    return room.router;
   }
+
+  addTransport(
+    socketId: string,
+    roomId: string,
+    transport: Transport,
+    consumer: boolean
+  ) {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+
+    this.rooms.get(roomId)?.transports.push({ socketId, transport, consumer });
+  }
+
+  async connectTransport(
+    socketId: string,
+    roomId: string,
+    dtlsParameters: any,
+    consumer: boolean
+  ) {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+
+    const transport = room.transports.find(
+      (t) => t.socketId === socketId && t.consumer === consumer
+    );
+    if (!transport) {
+      console.error("Transport not found");
+      return;
+    }
+
+    await transport.transport.connect({ dtlsParameters });
+  }
+
+  async produceTransport(socketId: string, data: any) {
+    const room = this.getRoom(data.roomId);
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+
+    const transport = room.transports.find(
+      (t) => t.socketId === socketId && t.consumer === data.consumer
+    );
+    if (!transport) {
+      console.error("Transport not found");
+      return;
+    }
+
+    const producer = await transport.transport.produce({
+      kind: data.kind,
+      rtpParameters: data.rtpParameters,
+    });
+
+    return producer;
+  }
+
+  addProducer(socketId: string, roomId: string, producer: Producer) {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+    room.producers.push({
+      socketId,
+      producer,
+    });
+  }
+
+  getProducerLength(roomId: string) {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+    return room.producers.length;
+  }
+
   //TODO: Consider peer rather than user and do related ops like createTransport, createProducer, createConsumer etc
   // handlePeerConnection({socketId,})
 }

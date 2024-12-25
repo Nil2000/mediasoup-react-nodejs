@@ -21,14 +21,75 @@ connections.on("connection", (socket) => {
     socketId: socket.id,
   });
 
-  socket.on("create-peer", (data) => {
+  socket.on("create-peer", (data, callback) => {
     userManager.handleNewPeer(socket, data.displayName || "Anonymous");
+    callback();
   });
 
   socket.on("join-room", async (data, callback) => {
     await userManager.addPeerToRoom(socket.id, data.roomId);
     callback({
-      rtpCapabilities: userManager.getRouterCapabilities(data.roomId),
+      rtpCapabilities: userManager.getRouter(data.roomId)?.rtpCapabilities,
+    });
+  });
+
+  socket.on("create-transport", async (data, callback) => {
+    userManager
+      .createTransport(socket.id, data.roomId)
+      .then((transport: any) => {
+        callback({
+          params: {
+            id: transport.id,
+            iceParameters: transport.iceParameters,
+            iceCandidates: transport.iceCandidates,
+            dtlsParameters: transport.dtlsParameters,
+          },
+        });
+        console.log("Transport created", transport.id);
+
+        //Add transport for producing
+        userManager.addTransportToRoom(
+          socket.id,
+          data.roomId,
+          transport,
+          data.consumer
+        );
+      })
+      .catch((error) => {
+        console.error("Error creating transport", error);
+        callback({ error: error });
+      });
+  });
+
+  socket.on("connect-transport", async (data) => {
+    console.log("DTLS Parameters", data.dtlsParameters);
+
+    await userManager.connectTransportToRoom(
+      socket.id,
+      data.roomId,
+      data.dtlsParameters,
+      data.consumer
+    );
+  });
+
+  socket.on("produce-transport", async (data, callback) => {
+    console.log("Produce transport", data);
+
+    const producer = await userManager.produceTransportOfRooom(socket.id, data);
+
+    userManager.addProducerToRoom(socket.id, data.roomId, producer!);
+
+    //TODO: inform consumers
+    console.log("Need to inform consumers");
+
+    producer?.on("transportclose", () => {
+      console.log("Producer transport closed");
+      producer.close();
+    });
+
+    callback({
+      id: producer?.id,
+      producersExist: userManager.getProducerLength(data.roomId)! > 1,
     });
   });
 
