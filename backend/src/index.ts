@@ -17,13 +17,19 @@ const userManager = new UserManager();
 
 connections.on("connection", (socket) => {
   console.log("A user connected");
-
-  socket.on("create-peer", (data) => {
-    userManager.handlePeer(socket, data.displayName);
-  });
-
   socket.emit("connection-success", {
     socketId: socket.id,
+  });
+
+  socket.on("create-peer", (data) => {
+    userManager.handleNewPeer(socket, data.displayName || "Anonymous");
+  });
+
+  socket.on("join-room", async (data, callback) => {
+    await userManager.addPeerToRoom(socket.id, data.roomId);
+    callback({
+      rtpCapabilities: userManager.getRouterCapabilities(data.roomId),
+    });
   });
 
   socket.on("disconnect", () => {

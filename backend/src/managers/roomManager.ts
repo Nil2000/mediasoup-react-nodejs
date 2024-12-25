@@ -2,22 +2,43 @@ import { Router } from "mediasoup/node/lib/RouterTypes";
 import { Peer } from "./userManager";
 import { worker } from "../utils/worker";
 import { Socket } from "socket.io";
-import { RtpCapabilities } from "mediasoup/node/lib/rtpParametersTypes";
-import { Consumer, Producer, Transport } from "mediasoup/node/lib/types";
+import {
+  RtpCapabilities,
+  RtpCodecCapability,
+} from "mediasoup/node/lib/rtpParametersTypes";
+import {
+  AppData,
+  Consumer,
+  Producer,
+  Transport,
+} from "mediasoup/node/lib/types";
 
 export interface Room {
   peers: Peer[];
   router: Router;
-  transports: Transport[];
-  producers: Producer[];
-  consumers: Consumer[];
+  maxPeers: number;
 }
 
+const mediaCodecs: RtpCodecCapability[] = [
+  {
+    kind: "audio",
+    mimeType: "audio/opus",
+    clockRate: 48000,
+    channels: 2,
+  },
+  {
+    kind: "video",
+    mimeType: "video/VP8",
+    clockRate: 90000,
+    parameters: {
+      "x-google-start-bitrate": 1000,
+    },
+  },
+];
 // let worker = createWorker();
 
 export class RoomManager {
   private rooms: Map<string, Room>;
-  private worker = worker;
 
   constructor() {
     this.rooms = new Map();
@@ -25,31 +46,35 @@ export class RoomManager {
   }
 
   async createRoom(roomId: string) {
-    const router = await this.worker.createRouter();
+    if (this.getRoom(roomId)) {
+      console.log("Room already exists");
+      return;
+    }
+
+    const router = await worker.createRouter({ mediaCodecs });
     this.rooms.set(roomId, {
       peers: [],
       router,
-      transports: [],
-      producers: [],
-      consumers: [],
+      maxPeers: 10,
     });
+    console.log("Room created");
   }
 
   getRoom(roomId: string) {
     return this.rooms.get(roomId);
   }
 
-  async addUsertoRoom(roomId: string, user: Peer) {
+  async addPeerToRoom(roomId: string, peer: Peer) {
     let room = this.getRoom(roomId);
     if (!room) {
       await this.createRoom(roomId);
       room = this.rooms.get(roomId);
     }
-    room?.peers.push(user);
+    room?.peers.push(peer);
   }
 
   removeUserFromRoom(roomId: string, socketId: string) {
-    let room = this.rooms.get(roomId);
+    let room = this.getRoom(roomId);
     if (!room) {
       console.log("Room not found");
       return;
@@ -63,8 +88,9 @@ export class RoomManager {
   }
 
   getRouterCapabilities(roomId: string) {
-    const room = this.rooms.get(roomId);
+    const room = this.getRoom(roomId);
     if (!room) {
+      console.error("Room not found");
       return null;
     }
     return room.router.rtpCapabilities;

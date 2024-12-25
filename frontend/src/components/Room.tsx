@@ -35,7 +35,6 @@ export default function Room() {
       ) as HTMLVideoElement;
       if (localVideo) {
         localVideo.srcObject = stream;
-        console.log(stream.getTracks());
         stream.getTracks().forEach((track) => {
           if (track.kind === "audio") {
             setLocalAudioTrack(track);
@@ -47,13 +46,13 @@ export default function Room() {
       }
     };
 
-    const createPeer = () => {
-      newSocket.emit("create-peer");
+    const createPeer = async () => {
+      newSocket.emit("create-peer", {});
     };
 
     const joinRoom = async () => {
       newSocket.emit("join-room", { roomId }, (data: any) => {
-        console.log("joined room", roomId);
+        console.log("joined room", data.rtpCapabilities);
         createDevice(data.rtpCapabilities);
       });
     };
@@ -66,23 +65,34 @@ export default function Room() {
           routerRtpCapabilities: rtpCapabilities,
         });
 
-        console.log("Device RTP Capabilities", device.rtpCapabilities);
+        console.log("Device created RTP Capabilities", device.rtpCapabilities);
       } catch (error: any) {
         console.log(error);
         if (error.name === "UnsupportedError") {
           console.error("browser not supported");
         }
+        throw error;
       }
     };
 
-    newSocket.on("connection-success", ({ socketId }) => {
+    const createProducerTransport = async () => {
+      socket?.emit("create-transport", { consumer: false });
+    };
+
+    newSocket.on("connection-success", async ({ socketId }) => {
       console.log(`Connected with socketId: ${socketId}`);
 
-      getLocalStream();
+      await getLocalStream();
 
-      createPeer();
+      try {
+        createPeer();
 
-      joinRoom();
+        await joinRoom();
+
+        createProducerTransport();
+      } catch (error) {
+        console.log(error);
+      }
     });
 
     setSocket(newSocket);
@@ -96,6 +106,9 @@ export default function Room() {
       Room:{roomId}
       <div>
         <video id="localVideo" autoPlay playsInline></video>
+        {/* <div >
+
+        </div> */}
       </div>
     </div>
   );

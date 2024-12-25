@@ -10,7 +10,7 @@ export async function createMediasoupWorker() {
     rtcMinPort: 20000,
   });
 
-  console.log(`Worker pid: ${mediasoupWorker.pid}`);
+  // console.log(`Worker pid: ${mediasoupWorker.pid}`);
 
   mediasoupWorker.on("died", () => {
     console.error("Worker died");

@@ -19,7 +19,7 @@ export class UserManager {
     console.log("User Manager initialized");
   }
 
-  handlePeer(socket: Socket, displayName: string) {
+  handleNewPeer(socket: Socket, displayName: string) {
     const newPeer: Peer = {
       socket,
       displayName,
@@ -39,8 +39,16 @@ export class UserManager {
     }
   }
 
-  // addUserToRoom(socket: Socket, userId: string, roomId: string) {
-  //   this.users.push({ socket: socket, userId, roomId });
-  //   this.roomManager.addUsertoRoom(roomId, { socket, userId, roomId });
-  // }
+  async addPeerToRoom(socketId: string, roomId: string) {
+    if (!this.peers.has(socketId)) {
+      console.error("Peer not found");
+      return;
+    }
+    await this.roomManager.addPeerToRoom(roomId, this.peers.get(socketId)!);
+    console.log("Peer added to room");
+  }
+
+  getRouterCapabilities(roomId: string) {
+    return this.roomManager.getRouterCapabilities(roomId);
+  }
 }
