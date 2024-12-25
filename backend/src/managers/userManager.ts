@@ -130,7 +130,24 @@ export class UserManager {
     this.roomManager.addProducer(socketId, roomId, producer);
   }
 
-  getProducerLength(roomId: string) {
-    return this.roomManager.getProducerLength(roomId);
+  getOtherProducersLength(socketId: string, roomId: string) {
+    return this.roomManager.getOtherProducerLength(socketId, roomId);
+  }
+
+  getOtherProducers(roomId: string, socketId: string) {
+    return this.roomManager.getOtherProducers(roomId, socketId);
+  }
+  async connectReceiverTransportToRoom(
+    remoteProducerId: string,
+    roomId: string,
+    dtlsParameters: any,
+    consumer: boolean
+  ) {
+    await this.roomManager.connectRecieverTransport(
+      remoteProducerId,
+      roomId,
+      dtlsParameters,
+      consumer
+    );
   }
 }

@@ -173,13 +173,55 @@ export class RoomManager {
     });
   }
 
-  getProducerLength(roomId: string) {
+  getOtherProducerLength(socketId: string, roomId: string) {
     const room = this.getRoom(roomId);
     if (!room) {
       console.error("Room not found");
       return;
     }
-    return room.producers.length;
+    return room.producers.filter((producer) => producer.socketId !== socketId)
+      .length;
+  }
+
+  getOtherProducers(roomId: string, socketId: string) {
+    let producers: string[] = [];
+
+    const room = this.getRoom(roomId);
+
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+
+    room.producers.forEach((producer) => {
+      if (producer.socketId !== socketId) {
+        producers.push(producer.producer.id);
+      }
+    });
+    return producers;
+  }
+
+  async connectRecieverTransport(
+    remoteProducerId: string,
+    roomId: string,
+    dtlsParameters: any,
+    consumer: boolean
+  ) {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+
+    const transport = room.transports.find(
+      (t) => t.transport.id == remoteProducerId && t.consumer === consumer
+    );
+    if (!transport) {
+      console.error("Transport not found");
+      return;
+    }
+
+    await transport.transport.connect({ dtlsParameters });
   }
 
   //TODO: Consider peer rather than user and do related ops like createTransport, createProducer, createConsumer etc

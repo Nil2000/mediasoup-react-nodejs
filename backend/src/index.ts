@@ -64,12 +64,21 @@ connections.on("connection", (socket) => {
   socket.on("connect-transport", async (data) => {
     console.log("DTLS Parameters", data.dtlsParameters);
 
-    await userManager.connectTransportToRoom(
-      socket.id,
-      data.roomId,
-      data.dtlsParameters,
-      data.consumer
-    );
+    if (!data.consumer) {
+      await userManager.connectTransportToRoom(
+        socket.id,
+        data.roomId,
+        data.dtlsParameters,
+        data.consumer
+      );
+    } else {
+      await userManager.connectReceiverTransportToRoom(
+        data.remoteProducerId,
+        data.roomId,
+        data.dtlsParameters,
+        data.consumer
+      );
+    }
   });
 
   socket.on("produce-transport", async (data, callback) => {
@@ -89,9 +98,17 @@ connections.on("connection", (socket) => {
 
     callback({
       id: producer?.id,
-      producersExist: userManager.getProducerLength(data.roomId)! > 1,
+      producersExist:
+        userManager.getOtherProducersLength(socket.id, data.roomId)! > 0,
     });
   });
+
+  socket.on("get-producers", (data, callback) => {
+    const producers = userManager.getOtherProducers(data.roomId, socket.id);
+    callback(producers);
+  });
+
+  socket.on("connect-reciever-transport", async (data, callback) => {});
 
   socket.on("disconnect", () => {
     userManager.removePeer(socket.id);

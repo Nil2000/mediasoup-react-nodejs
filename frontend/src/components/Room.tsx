@@ -1,5 +1,4 @@
 import { Device } from "mediasoup-client";
-import { Consumer } from "mediasoup-client/lib/Consumer";
 import { RtpCapabilities } from "mediasoup-client/lib/RtpParameters";
 import { Transport } from "mediasoup-client/lib/types";
 import React from "react";
@@ -9,10 +8,9 @@ import { io, Socket } from "socket.io-client";
 export default function Room() {
   let { roomId } = useParams();
   const [socket, setSocket] = React.useState<Socket | null>(null);
-  const [localAudioTrack, setLocalAudioTrack] =
-    React.useState<MediaStreamTrack | null>(null);
-  const [localVideoTrack, setLocalVideoTrack] =
-    React.useState<MediaStreamTrack | null>(null);
+  const localAudioTrackRef = React.useRef<MediaStreamTrack | null>(null);
+  const localVideoTrackRef = React.useRef<MediaStreamTrack | null>(null);
+  const consumingTransportRef = React.useRef<string[]>([]);
 
   React.useEffect(() => {
     let device: Device;
@@ -40,10 +38,10 @@ export default function Room() {
         console.log("Local Stream", stream.getTracks());
         stream.getTracks().forEach((track) => {
           if (track.kind === "audio") {
-            setLocalAudioTrack(track);
+            localAudioTrackRef.current = track;
           }
           if (track.kind === "video") {
-            setLocalVideoTrack(track);
+            localVideoTrackRef.current = track;
           }
         });
         createPeer();
@@ -131,7 +129,7 @@ export default function Room() {
 
                   //get producers
                   if (producersExist) {
-                    console.log("Producers exist");
+                    getProducers();
                   }
                 }
               );
@@ -147,13 +145,13 @@ export default function Room() {
     };
 
     const connectProducerTransport = async (producerTransport: Transport) => {
-      console.log(localAudioTrack, localVideoTrack);
+      console.log(localAudioTrackRef.current, localVideoTrackRef.current);
 
       const audioProducer = await producerTransport.produce({
-        track: localAudioTrack!,
+        track: localAudioTrackRef.current!,
       });
       const videoProducer = await producerTransport.produce({
-        track: localVideoTrack!,
+        track: localVideoTrackRef.current!,
         encodings: [
           {
             rid: "r0",
@@ -191,6 +189,48 @@ export default function Room() {
       videoProducer.on("trackended", () => {
         console.log("video track ended");
       });
+    };
+
+    const getProducers = async () => {
+      newSocket.emit("get-producers", { roomId }, (producerIds: string[]) => {
+        console.log("Producer ids" + producerIds);
+      });
+    };
+
+    const signalNewConsumerTransport = async (remoteProducerId: string) => {
+      if (consumingTransportRef.current.includes(remoteProducerId)) {
+        return;
+      }
+
+      newSocket.emit(
+        "create-transport",
+        { roomId, consumer: true },
+        ({ params }: any) => {
+          if (params.error) {
+            console.error(params.error);
+            return;
+          }
+
+          const consumerTransport = device.createRecvTransport(params);
+
+          consumerTransport.on(
+            "connect",
+            async ({ dtlsParameters }, callback, errback) => {
+              try {
+                newSocket.emit("connect-transport", {
+                  dtlsParameters,
+                  roomId,
+                  consumer: true,
+                  remoteProducerId,
+                });
+                callback();
+              } catch (error: any) {
+                errback(error);
+              }
+            }
+          );
+        }
+      );
     };
 
     newSocket.on("connection-success", async ({ socketId }) => {
