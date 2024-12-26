@@ -129,13 +129,13 @@ export class RoomManager {
 
     const transport = room.transports.find(
       (t) => t.socketId === socketId && t.consumer === consumer
-    );
+    )?.transport;
     if (!transport) {
       console.error("Transport not found");
       return;
     }
 
-    await transport.transport.connect({ dtlsParameters });
+    await transport.connect({ dtlsParameters });
   }
 
   async produceTransport(socketId: string, data: any) {
@@ -215,15 +215,12 @@ export class RoomManager {
 
     const transport = room.transports.find(
       (t) => t.transport.id == remoteProducerId && t.consumer === consumer
-    );
+    )?.transport;
     if (!transport) {
       console.error("Transport not found");
       return;
     }
 
-    await transport.transport.connect({ dtlsParameters });
+    await transport.connect({ dtlsParameters });
   }
-
-  //TODO: Consider peer rather than user and do related ops like createTransport, createProducer, createConsumer etc
-  // handlePeerConnection({socketId,})
 }

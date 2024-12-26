@@ -202,6 +202,8 @@ export default function Room() {
         return;
       }
 
+      console.log("Signaling new consumer transport", remoteProducerId);
+
       newSocket.emit(
         "create-transport",
         { roomId, consumer: true },

@@ -82,7 +82,7 @@ connections.on("connection", (socket) => {
   });
 
   socket.on("produce-transport", async (data, callback) => {
-    console.log("Produce transport", data);
+    // console.log("Produce transport", data);
 
     const producer = await userManager.produceTransportOfRooom(socket.id, data);
 
