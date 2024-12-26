@@ -3,6 +3,7 @@ import http from "http";
 import { Server } from "socket.io";
 import { UserManager } from "./managers/userManager";
 import { createMediasoupWorker } from "./utils/worker";
+import { WebRtcTransport } from "mediasoup/node/lib/WebRtcTransportTypes";
 const app = express();
 
 const server = http.createServer(app);
@@ -35,8 +36,9 @@ connections.on("connection", (socket) => {
 
   socket.on("create-transport", async (data, callback) => {
     userManager
-      .createTransport(socket.id, data.roomId)
+      .createTransport(socket.id, data.roomId, data.consumer)
       .then((transport: any) => {
+        console.log("Transport ->", transport.id);
         callback({
           params: {
             id: transport.id,
@@ -45,7 +47,6 @@ connections.on("connection", (socket) => {
             dtlsParameters: transport.dtlsParameters,
           },
         });
-        console.log("Transport created", transport.id);
 
         //Add transport for producing
         userManager.addTransportToRoom(
@@ -57,28 +58,28 @@ connections.on("connection", (socket) => {
       })
       .catch((error) => {
         console.error("Error creating transport", error);
-        callback({ error: error });
+        callback({ params: { error: error } });
       });
   });
 
   socket.on("connect-transport", async (data) => {
     console.log("DTLS Parameters", data.dtlsParameters);
 
-    if (!data.consumer) {
-      await userManager.connectTransportToRoom(
-        socket.id,
-        data.roomId,
-        data.dtlsParameters,
-        data.consumer
-      );
-    } else {
-      await userManager.connectReceiverTransportToRoom(
-        data.remoteProducerId,
-        data.roomId,
-        data.dtlsParameters,
-        data.consumer
-      );
-    }
+    // if (!data.consumer) {
+    await userManager.connectTransportToRoom(
+      socket.id,
+      data.roomId,
+      data.dtlsParameters,
+      data.consumer
+    );
+    // } else {
+    //   await userManager.connectReceiverTransportToRoom(
+    //     socket.id,
+    //     data.roomId,
+    //     data.dtlsParameters,
+    //     data.consumer
+    //   );
+    // }
   });
 
   socket.on("produce-transport", async (data, callback) => {
@@ -107,8 +108,6 @@ connections.on("connection", (socket) => {
     const producers = userManager.getOtherProducers(data.roomId, socket.id);
     callback(producers);
   });
-
-  socket.on("connect-reciever-transport", async (data, callback) => {});
 
   socket.on("disconnect", () => {
     userManager.removePeer(socket.id);

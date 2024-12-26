@@ -112,7 +112,17 @@ export class RoomManager {
       return;
     }
 
+    const existingTransport = room.transports.find(
+      (t) => t.socketId === socketId && t.consumer === consumer
+    )?.transport;
+
+    if (existingTransport) {
+      return;
+    }
+
     this.rooms.get(roomId)?.transports.push({ socketId, transport, consumer });
+
+    console.log(this.rooms.get(roomId)?.transports);
   }
 
   async connectTransport(
@@ -127,6 +137,7 @@ export class RoomManager {
       return;
     }
 
+    console.log(socketId, consumer);
     const transport = room.transports.find(
       (t) => t.socketId === socketId && t.consumer === consumer
     )?.transport;
@@ -202,7 +213,7 @@ export class RoomManager {
   }
 
   async connectRecieverTransport(
-    remoteProducerId: string,
+    socketId: string,
     roomId: string,
     dtlsParameters: any,
     consumer: boolean
@@ -214,7 +225,7 @@ export class RoomManager {
     }
 
     const transport = room.transports.find(
-      (t) => t.transport.id == remoteProducerId && t.consumer === consumer
+      (t) => t.socketId === socketId && t.consumer === consumer
     )?.transport;
     if (!transport) {
       console.error("Transport not found");

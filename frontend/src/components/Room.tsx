@@ -193,7 +193,9 @@ export default function Room() {
 
     const getProducers = async () => {
       newSocket.emit("get-producers", { roomId }, (producerIds: string[]) => {
-        console.log("Producer ids" + producerIds);
+        producerIds.forEach((producerId) => {
+          signalNewConsumerTransport(producerId);
+        });
       });
     };
 
@@ -201,9 +203,8 @@ export default function Room() {
       if (consumingTransportRef.current.includes(remoteProducerId)) {
         return;
       }
-
-      console.log("Signaling new consumer transport", remoteProducerId);
-
+      consumingTransportRef.current.push(remoteProducerId);
+      console.log("Creating consumer transport for", remoteProducerId);
       newSocket.emit(
         "create-transport",
         { roomId, consumer: true },
@@ -223,7 +224,6 @@ export default function Room() {
                   dtlsParameters,
                   roomId,
                   consumer: true,
-                  remoteProducerId,
                 });
                 callback();
               } catch (error: any) {
@@ -231,6 +231,8 @@ export default function Room() {
               }
             }
           );
+
+          //TODO: Start consuming for this transport
         }
       );
     };

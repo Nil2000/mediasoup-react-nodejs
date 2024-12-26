@@ -5,7 +5,10 @@ import { Producer, Transport, WebRtcTransport } from "mediasoup/node/lib/types";
 export interface Peer {
   socket: Socket;
   displayName?: string;
-  transports: WebRtcTransport[];
+  transports: {
+    transport: WebRtcTransport;
+    consumer: boolean;
+  }[];
   producers: Map<string, any>;
   consumers: Map<string, any>;
 }
@@ -65,7 +68,7 @@ export class UserManager {
     return this.roomManager.getRouter(roomId);
   }
 
-  async createTransport(socketId: string, roomId: string) {
+  async createTransport(socketId: string, roomId: string, consumer: boolean) {
     if (!this.peers.has(socketId)) {
       console.error("Peer not found");
       return;
@@ -80,20 +83,29 @@ export class UserManager {
       return;
     }
 
-    const transport = await router.createWebRtcTransport(transport_options);
+    let transport = peer?.transports.find(
+      (t) => t.consumer === consumer
+    )?.transport;
 
-    transport.on("dtlsstatechange", (dtlsState) => {
-      if (dtlsState === "closed") {
-        transport.close();
-        console.log("Transport closed");
-      }
-    });
+    if (!transport) {
+      transport = await router.createWebRtcTransport(transport_options);
 
-    transport.on("@close", () => {
-      console.log("Transport closed", transport.id);
-    });
+      transport.on("dtlsstatechange", (dtlsState) => {
+        if (dtlsState === "closed") {
+          transport!.close();
+          console.log("Transport closed");
+        }
+      });
 
-    peer?.transports.push(transport);
+      transport.on("@close", () => {
+        console.log("Transport closed", transport!.id);
+      });
+
+      peer?.transports.push({
+        transport: transport,
+        consumer: consumer,
+      });
+    }
 
     return transport;
   }
@@ -138,13 +150,13 @@ export class UserManager {
     return this.roomManager.getOtherProducers(roomId, socketId);
   }
   async connectReceiverTransportToRoom(
-    remoteProducerId: string,
+    socketId: string,
     roomId: string,
     dtlsParameters: any,
     consumer: boolean
   ) {
     await this.roomManager.connectRecieverTransport(
-      remoteProducerId,
+      socketId,
       roomId,
       dtlsParameters,
       consumer
