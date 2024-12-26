@@ -87,7 +87,7 @@ connections.on("connection", (socket) => {
 
     const producer = await userManager.produceTransportOfRooom(socket.id, data);
 
-    userManager.addProducerToRoom(socket.id, data.roomId, producer!);
+    userManager.addProducerToRoom(socket.id, data.roomId, producer!, data.kind);
 
     //TODO: inform consumers
     console.log("Need to inform consumers");
@@ -102,6 +102,25 @@ connections.on("connection", (socket) => {
       producersExist:
         userManager.getOtherProducersLength(socket.id, data.roomId)! > 0,
     });
+  });
+
+  socket.on("consume-transport", async (data, callback) => {
+    try {
+      const params = await userManager.consumeTransport(
+        data.roomId,
+        data.remoteProducerId,
+        data.rtpCapabilities,
+        socket
+      );
+      callback({ params });
+    } catch (error) {
+      console.log("Error consuming transport", error);
+      callback({ error });
+    }
+  });
+
+  socket.on("resume-consumer", async ({ roomId, serverConsumerId }) => {
+    await userManager.resumeConsumer(roomId, serverConsumerId);
   });
 
   socket.on("get-producers", (data, callback) => {

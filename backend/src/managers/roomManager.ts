@@ -11,14 +11,20 @@ import {
   Consumer,
   Producer,
   Transport,
+  WebRtcTransport,
 } from "mediasoup/node/lib/types";
 
 export interface Room {
   peers: Peer[];
   router: Router;
   maxPeers: number;
-  transports: { socketId: string; transport: Transport; consumer: boolean }[];
-  producers: { socketId: string; producer: Producer }[];
+  transports: {
+    socketId: string;
+    transport: WebRtcTransport;
+    consumer: boolean;
+  }[];
+  producers: { socketId: string; producer: Producer; kind: string }[];
+  consumers: Consumer[];
 }
 
 const mediaCodecs: RtpCodecCapability[] = [
@@ -60,6 +66,7 @@ export class RoomManager {
       maxPeers: 10,
       transports: [],
       producers: [],
+      consumers: [],
     });
     console.log("Room created");
   }
@@ -103,7 +110,7 @@ export class RoomManager {
   addTransport(
     socketId: string,
     roomId: string,
-    transport: Transport,
+    transport: WebRtcTransport,
     consumer: boolean
   ) {
     const room = this.getRoom(roomId);
@@ -137,7 +144,7 @@ export class RoomManager {
       return;
     }
 
-    console.log(socketId, consumer);
+    console.log("CONNECT_TRANSPORT", socketId, consumer);
     const transport = room.transports.find(
       (t) => t.socketId === socketId && t.consumer === consumer
     )?.transport;
@@ -145,7 +152,11 @@ export class RoomManager {
       console.error("Transport not found");
       return;
     }
-
+    console.log(transport.dtlsState);
+    if (transport.dtlsState === "connected") {
+      console.log("Transport already connected");
+      return;
+    }
     await transport.connect({ dtlsParameters });
   }
 
@@ -172,7 +183,12 @@ export class RoomManager {
     return producer;
   }
 
-  addProducer(socketId: string, roomId: string, producer: Producer) {
+  addProducer(
+    socketId: string,
+    roomId: string,
+    producer: Producer,
+    kind: string
+  ) {
     const room = this.getRoom(roomId);
     if (!room) {
       console.error("Room not found");
@@ -181,7 +197,32 @@ export class RoomManager {
     room.producers.push({
       socketId,
       producer,
+      kind,
     });
+  }
+
+  addConsumer(consumer: Consumer, roomId: string) {
+    console.log("Consumer added");
+
+    const room = this.getRoom(roomId);
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+
+    room.consumers.push(consumer);
+  }
+
+  removeConsumer(consumerId: string, roomId: string) {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+
+    room.consumers = room.consumers.filter(
+      (consumer) => consumer.id !== consumerId
+    );
   }
 
   getOtherProducerLength(socketId: string, roomId: string) {
@@ -233,5 +274,29 @@ export class RoomManager {
     }
 
     await transport.connect({ dtlsParameters });
+  }
+
+  getProducer(roomId: string, producerId: string) {
+    const room = this.getRoom(roomId);
+
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+
+    return room.producers.find(
+      (producer) => producer.producer.id === producerId
+    )?.producer;
+  }
+
+  getConsumer(roomId: string, consumerId: string) {
+    const room = this.rooms.get(roomId);
+
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+
+    return room.consumers.find((consumer) => consumer.id === consumerId);
   }
 }

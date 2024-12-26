@@ -9,8 +9,8 @@ export interface Peer {
     transport: WebRtcTransport;
     consumer: boolean;
   }[];
-  producers: Map<string, any>;
-  consumers: Map<string, any>;
+  // producers: Map<string, any>;
+  // consumers: Map<string, any>;
 }
 
 const transport_options = {
@@ -40,8 +40,8 @@ export class UserManager {
       socket,
       displayName,
       transports: [],
-      producers: new Map(),
-      consumers: new Map(),
+      // producers: new Map(),
+      // consumers: new Map(),
     };
     this.peers.set(socket.id, newPeer);
     console.log("New peer connected");
@@ -113,7 +113,7 @@ export class UserManager {
   addTransportToRoom(
     socketId: string,
     roomId: string,
-    transport: Transport,
+    transport: WebRtcTransport,
     consumer: boolean
   ) {
     this.roomManager.addTransport(socketId, roomId, transport, consumer);
@@ -138,8 +138,13 @@ export class UserManager {
     return producer;
   }
 
-  addProducerToRoom(socketId: string, roomId: string, producer: Producer) {
-    this.roomManager.addProducer(socketId, roomId, producer);
+  addProducerToRoom(
+    socketId: string,
+    roomId: string,
+    producer: Producer,
+    kind: string
+  ) {
+    this.roomManager.addProducer(socketId, roomId, producer, kind);
   }
 
   getOtherProducersLength(socketId: string, roomId: string) {
@@ -161,5 +166,83 @@ export class UserManager {
       dtlsParameters,
       consumer
     );
+  }
+
+  async consumeTransport(
+    roomId: string,
+    producerId: string,
+    rtpCapabilities: any,
+    socket: Socket
+  ) {
+    const producer = this.roomManager.getProducer(roomId, producerId);
+
+    if (!producer) {
+      console.error("Producer not found");
+      return;
+    }
+
+    const peer = this.peers.get(socket.id);
+
+    if (!peer) {
+      console.error("Peer not found");
+      return;
+    }
+
+    const transport = peer.transports.find((t) => t.consumer)?.transport;
+
+    if (!transport) {
+      console.error("Transport not found");
+      return;
+    }
+
+    const router = this.getRouter(roomId);
+
+    if (!router) {
+      console.error("Router not found");
+      return;
+    }
+
+    if (router.canConsume({ producerId, rtpCapabilities })) {
+      const consumer = await transport.consume({
+        producerId,
+        rtpCapabilities,
+        paused: true,
+      });
+
+      consumer.on("transportclose", () => {
+        console.log("Consumer transport closed");
+      });
+
+      consumer.on("producerclose", () => {
+        console.log("Producer closed");
+        //TO remove from the list (frontend)
+        socket.emit("producer-closed", { producerId });
+
+        consumer.close();
+        this.roomManager.removeConsumer(consumer.id, roomId);
+      });
+
+      this.roomManager.addConsumer(consumer, roomId);
+
+      return {
+        id: consumer.id,
+        producerId,
+        kind: consumer.kind,
+        rtpParameters: consumer.rtpParameters,
+      };
+    }
+    return {
+      error: "No suitable producer",
+    };
+  }
+
+  async resumeConsumer(roomId: string, consumerId: string) {
+    const consumer = this.roomManager.getConsumer(roomId, consumerId);
+    if (!consumer) {
+      console.error("Consumer not found");
+      return;
+    }
+
+    await consumer.resume();
   }
 }

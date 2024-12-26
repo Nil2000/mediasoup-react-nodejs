@@ -11,6 +11,7 @@ export default function Room() {
   const localAudioTrackRef = React.useRef<MediaStreamTrack | null>(null);
   const localVideoTrackRef = React.useRef<MediaStreamTrack | null>(null);
   const consumingTransportRef = React.useRef<string[]>([]);
+  const consumerTransportRef = React.useRef<Transport | null>(null);
 
   React.useEffect(() => {
     let device: Device;
@@ -208,7 +209,7 @@ export default function Room() {
       newSocket.emit(
         "create-transport",
         { roomId, consumer: true },
-        ({ params }: any) => {
+        async ({ params }: any) => {
           if (params.error) {
             console.error(params.error);
             return;
@@ -232,7 +233,50 @@ export default function Room() {
             }
           );
 
+          consumerTransportRef.current = consumerTransport;
           //TODO: Start consuming for this transport
+          await consumeReceiverTransport(consumerTransport, remoteProducerId);
+        }
+      );
+    };
+
+    const consumeReceiverTransport = async (
+      consumerTransport: Transport,
+      remoteProducerId: string
+    ) => {
+      newSocket.emit(
+        "consume-transport",
+        { roomId, remoteProducerId, rtpCapabilities: device.rtpCapabilities },
+        async ({ params }: any) => {
+          if (params.error) {
+            console.error(params.error);
+            return;
+          }
+
+          console.log("Consuming transport", params);
+
+          const consumer = await consumerTransport.consume(params);
+
+          const newContainer = document.createElement("div");
+          newContainer.setAttribute("id", `container_${remoteProducerId}`);
+          newContainer.setAttribute("class", "container");
+          newContainer.innerHTML = `<video id="remoteVideo_${remoteProducerId}" autoplay playsinline></video>`;
+          document
+            .getElementById("remoteVideoContainer")
+            ?.appendChild(newContainer);
+
+          const { track } = consumer;
+
+          const remoteVideo = document.getElementById(
+            `remoteVideo_${remoteProducerId}`
+          ) as HTMLVideoElement;
+
+          remoteVideo.srcObject = new MediaStream([track]);
+
+          newSocket.emit("resume-consumer", {
+            roomId,
+            serverConsumerId: params.id,
+          });
         }
       );
     };
@@ -262,6 +306,7 @@ export default function Room() {
         {/* <div >
 
         </div> */}
+        <div id="remoteVideoContainer"></div>
       </div>
     </div>
   );
