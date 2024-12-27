@@ -1,6 +1,6 @@
 import { Device } from "mediasoup-client";
 import { RtpCapabilities } from "mediasoup-client/lib/RtpParameters";
-import { Transport } from "mediasoup-client/lib/types";
+import { Consumer, Transport } from "mediasoup-client/lib/types";
 import React from "react";
 import { useParams } from "react-router";
 import { io, Socket } from "socket.io-client";
@@ -15,6 +15,7 @@ export default function Room() {
 
   React.useEffect(() => {
     let device: Device;
+    // let consumers=new Map<string,Consumer[]>();
     const newSocket = io("http://localhost:3000/call");
 
     const getLocalStream = async () => {
@@ -35,7 +36,7 @@ export default function Room() {
         "localVideo"
       ) as HTMLVideoElement;
       if (localVideo) {
-        localVideo.srcObject = stream;
+        localVideo.srcObject = new MediaStream(stream.getVideoTracks());
         console.log("Local Stream", stream.getTracks());
         stream.getTracks().forEach((track) => {
           if (track.kind === "audio") {
@@ -259,22 +260,37 @@ export default function Room() {
           console.log("Consuming transport", params);
 
           const consumer = await consumerTransport.consume(params);
+          console.log(consumer.track);
+          if (params.kind === "video") {
+            const newContainer = document.createElement("div");
+            newContainer.setAttribute("id", `container_${remoteProducerId}`);
+            newContainer.setAttribute("class", "container");
+            newContainer.innerHTML = `<video id="remoteVideo_${remoteProducerId}" autoplay playsinline></video>`;
+            document
+              .getElementById("remoteVideoContainer")
+              ?.appendChild(newContainer);
 
-          const newContainer = document.createElement("div");
-          newContainer.setAttribute("id", `container_${remoteProducerId}`);
-          newContainer.setAttribute("class", "container");
-          newContainer.innerHTML = `<video id="remoteVideo_${remoteProducerId}" autoplay playsinline></video>`;
-          document
-            .getElementById("remoteVideoContainer")
-            ?.appendChild(newContainer);
+            const remoteVideo = document.getElementById(
+              `remoteVideo_${remoteProducerId}`
+            ) as HTMLVideoElement;
 
-          const { track } = consumer;
+            remoteVideo.srcObject = new MediaStream([consumer.track]);
+          } else if (params.kind === "audio") {
+            const newContainer = document.createElement("div");
+            newContainer.setAttribute("id", `container_${remoteProducerId}`);
+            newContainer.innerHTML = `<audio id="remoteAudio_${remoteProducerId}" autoplay playsinline></audio>`;
+            document
+              .getElementById("remoteVideoContainer")
+              ?.appendChild(newContainer);
 
-          const remoteVideo = document.getElementById(
-            `remoteVideo_${remoteProducerId}`
-          ) as HTMLVideoElement;
+            const remoteAudio = document.getElementById(
+              `remoteAudio_${remoteProducerId}`
+            ) as HTMLAudioElement;
 
-          remoteVideo.srcObject = new MediaStream([track]);
+            remoteAudio.srcObject = new MediaStream([consumer.track]);
+
+            remoteAudio.play();
+          }
 
           newSocket.emit("resume-consumer", {
             roomId,
