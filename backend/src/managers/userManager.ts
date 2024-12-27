@@ -312,6 +312,10 @@ export class UserManager {
     };
   }
 
+  informAllConsumers(roomId: string, producerId: string, socketId: string) {
+    this.roomManager.informAllConsumers(roomId, producerId, socketId);
+  }
+
   async resumeConsumer(roomId: string, consumerId: string) {
     const consumer = this.roomManager.getConsumer(roomId, consumerId);
     if (!consumer) {

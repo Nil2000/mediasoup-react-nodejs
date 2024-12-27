@@ -300,6 +300,11 @@ export default function Room() {
       );
     };
 
+    newSocket.on("new-producer", async ({ producerId }) => {
+      console.log("New Producer", producerId);
+      await handleNewConsumerTransport(producerId);
+    });
+
     newSocket.on("connection-success", async ({ socketId }) => {
       console.log(`Connected with socketId: ${socketId}`);
 

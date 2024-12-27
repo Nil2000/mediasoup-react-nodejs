@@ -300,4 +300,21 @@ export class RoomManager {
 
     return room.consumers.find((consumer) => consumer.id === consumerId);
   }
+
+  informAllConsumers(roomId: string, producerId: string, socketId: string) {
+    console.log("Informing all consumers");
+
+    const room = this.getRoom(roomId);
+
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+
+    room.peers.forEach((peer) => {
+      if (peer.socket.id !== socketId) {
+        peer.socket.emit("new-producer", { producerId });
+      }
+    });
+  }
 }

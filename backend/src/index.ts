@@ -76,6 +76,8 @@ connections.on("connection", (socket) => {
     //TODO: inform consumers
     console.log("Need to inform consumers");
 
+    userManager.informAllConsumers(data.roomId, producer!.id, socket.id);
+
     callback({
       id: producer?.id,
       producersExist:
