@@ -28,6 +28,7 @@ const transport_options = {
 export class UserManager {
   private peers: Map<string, Peer>;
   private roomManager: RoomManager;
+  private transportCreationLocks = new Map<string, Promise<any>>();
 
   constructor() {
     this.peers = new Map();
@@ -69,6 +70,8 @@ export class UserManager {
   }
 
   async createTransport(socketId: string, roomId: string, consumer: boolean) {
+    console.log("UserManager Create transport", socketId, roomId, consumer);
+
     if (!this.peers.has(socketId)) {
       console.error("Peer not found");
       return;
@@ -87,54 +90,127 @@ export class UserManager {
       (t) => t.consumer === consumer
     )?.transport;
 
-    if (!transport) {
-      transport = await router.createWebRtcTransport(transport_options);
-
-      transport.on("dtlsstatechange", (dtlsState) => {
-        if (dtlsState === "closed") {
-          transport!.close();
-          console.log("Transport closed");
-        }
-      });
-
-      transport.on("@close", () => {
-        console.log("Transport closed", transport!.id);
-      });
-
-      peer?.transports.push({
-        transport: transport,
-        consumer: consumer,
-      });
+    if (transport) {
+      console.log("Transport found->", transport);
+      return transport;
     }
 
-    return transport;
+    //Create locks for transport creation
+    const lockKey = `${socketId}-${consumer}`;
+    const existingCreationPromise = this.transportCreationLocks.get(lockKey);
+    if (existingCreationPromise) {
+      return existingCreationPromise;
+    }
+
+    const creationPromise = (async () => {
+      try {
+        const newTransport = await router.createWebRtcTransport(
+          transport_options
+        );
+
+        newTransport.on("dtlsstatechange", (dtlsState) => {
+          if (dtlsState === "closed") {
+            newTransport.close();
+            console.log("Transport closed");
+          }
+        });
+
+        newTransport.on("@close", () => {
+          console.log("Transport closed", newTransport.id);
+        });
+
+        peer?.transports.push({
+          transport: newTransport,
+          consumer: consumer,
+        });
+
+        console.log("Transport created->", newTransport.id);
+        return newTransport;
+      } finally {
+        this.transportCreationLocks.delete(lockKey);
+      }
+    })();
+
+    this.transportCreationLocks.set(lockKey, creationPromise);
+
+    return creationPromise;
   }
 
-  addTransportToRoom(
-    socketId: string,
-    roomId: string,
-    transport: WebRtcTransport,
-    consumer: boolean
-  ) {
-    this.roomManager.addTransport(socketId, roomId, transport, consumer);
-  }
+  // addTransportToRoom(
+  //   socketId: string,
+  //   roomId: string,
+  //   transport: WebRtcTransport,
+  //   consumer: boolean
+  // ) {
+  //   this.roomManager.addTransport(socketId, roomId, transport, consumer);
+  // }
 
-  async connectTransportToRoom(
+  // async connectTransportToRoom(
+  //   socketId: string,
+  //   roomId: string,
+  //   dtlsParameters: any,
+  //   consumer: boolean
+  // ) {
+  //   await this.roomManager.connectTransport(
+  //     socketId,
+  //     roomId,
+  //     dtlsParameters,
+  //     consumer
+  //   );
+  // }
+
+  async connectTransport(
     socketId: string,
-    roomId: string,
     dtlsParameters: any,
     consumer: boolean
   ) {
-    await this.roomManager.connectTransport(
-      socketId,
-      roomId,
-      dtlsParameters,
-      consumer
-    );
+    if (!this.peers.has(socketId)) {
+      console.error("Peer not found");
+      return;
+    }
+
+    const peer = this.peers.get(socketId);
+
+    let transport = peer?.transports.find(
+      (t) => t.consumer === consumer
+    )?.transport;
+
+    if (!transport) {
+      console.log("Transport not found");
+      return;
+    }
+
+    await transport.connect({ dtlsParameters });
+
+    console.log("Transport connected->", transport.id);
   }
 
-  async produceTransportOfRooom(socketId: string, data: any) {
-    const producer = await this.roomManager.produceTransport(socketId, data);
+  async produceTransport(socketId: string, data: any) {
+    console.log("UserManager Produce transport");
+    const peer = this.peers.get(socketId);
+
+    if (!peer) {
+      console.error("Peer not found");
+      return;
+    }
+
+    const transport = peer.transports.find((t) => !t.consumer)?.transport;
+
+    if (!transport) {
+      console.error("Producer Transport not found");
+      return;
+    }
+
+    const producer = await transport.produce({
+      kind: data.kind,
+      rtpParameters: data.rtpParameters,
+    });
+
+    producer.on("transportclose", () => {
+      console.log("Producer transport closed");
+      producer.close();
+    });
+
     return producer;
   }
 

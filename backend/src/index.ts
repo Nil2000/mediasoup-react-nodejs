@@ -49,12 +49,6 @@ connections.on("connection", (socket) => {
         });
 
         //Add transport for producing
-        userManager.addTransportToRoom(
-          socket.id,
-          data.roomId,
-          transport,
-          data.consumer
-        );
       })
       .catch((error) => {
         console.error("Error creating transport", error);
@@ -65,37 +59,22 @@ connections.on("connection", (socket) => {
   socket.on("connect-transport", async (data) => {
     console.log("DTLS Parameters", data.dtlsParameters);
 
-    // if (!data.consumer) {
-    await userManager.connectTransportToRoom(
+    await userManager.connectTransport(
       socket.id,
-      data.roomId,
       data.dtlsParameters,
       data.consumer
     );
-    // } else {
-    //   await userManager.connectReceiverTransportToRoom(
-    //     socket.id,
-    //     data.roomId,
-    //     data.dtlsParameters,
-    //     data.consumer
-    //   );
-    // }
   });
 
   socket.on("produce-transport", async (data, callback) => {
     // console.log("Produce transport", data);
 
-    const producer = await userManager.produceTransportOfRooom(socket.id, data);
+    const producer = await userManager.produceTransport(socket.id, data);
 
     userManager.addProducerToRoom(socket.id, data.roomId, producer!, data.kind);
 
     //TODO: inform consumers
     console.log("Need to inform consumers");
-
-    producer?.on("transportclose", () => {
-      console.log("Producer transport closed");
-      producer.close();
-    });
 
     callback({
       id: producer?.id,

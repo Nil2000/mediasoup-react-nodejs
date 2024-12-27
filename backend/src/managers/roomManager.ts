@@ -160,28 +160,29 @@ export class RoomManager {
     await transport.connect({ dtlsParameters });
   }
 
-  async produceTransport(socketId: string, data: any) {
-    const room = this.getRoom(data.roomId);
-    if (!room) {
-      console.error("Room not found");
-      return;
-    }
+  // async produceTransport(socketId: string, data: any) {
+  //   console.log("ROOM_MANAGER_PRODUCE_TRANSPORT", socketId, data);
+  //   const room = this.getRoom(data.roomId);
+  //   if (!room) {
+  //     console.error("Room not found");
+  //     return;
+  //   }
 
-    const transport = room.transports.find(
-      (t) => t.socketId === socketId && t.consumer === data.consumer
-    );
-    if (!transport) {
-      console.error("Transport not found");
-      return;
-    }
+  //   const transport = room.transports.find(
+  //     (t) => t.socketId === socketId && t.consumer === data.consumer
+  //   );
+  //   if (!transport) {
+  //     console.error("Transport not found");
+  //     return;
+  //   }
 
-    const producer = await transport.transport.produce({
-      kind: data.kind,
-      rtpParameters: data.rtpParameters,
-    });
+  //   const producer = await transport.transport.produce({
+  //     kind: data.kind,
+  //     rtpParameters: data.rtpParameters,
+  //   });
 
-    return producer;
-  }
+  //   return producer;
+  // }
 
   addProducer(
     socketId: string,

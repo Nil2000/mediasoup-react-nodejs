@@ -192,20 +192,20 @@ export default function Room() {
       });
     };
 
-    const getProducers = async () => {
+    const getProducers = () => {
       newSocket.emit("get-producers", { roomId }, (producerIds: string[]) => {
-        producerIds.forEach((producerId) => {
-          signalNewConsumerTransport(producerId);
+        producerIds.forEach(async (producerId) => {
+          await handleNewConsumerTransport(producerId);
         });
       });
     };
 
-    const signalNewConsumerTransport = async (remoteProducerId: string) => {
+    const handleNewConsumerTransport = async (remoteProducerId: string) => {
       if (consumingTransportRef.current.includes(remoteProducerId)) {
         return;
       }
       consumingTransportRef.current.push(remoteProducerId);
-      console.log("Creating consumer transport for", remoteProducerId);
+      console.log("Creating consumer transport for ->", remoteProducerId);
       newSocket.emit(
         "create-transport",
         { roomId, consumer: true },
@@ -214,28 +214,31 @@ export default function Room() {
             console.error(params.error);
             return;
           }
+          if (!consumerTransportRef.current) {
+            const consumerTransport = device.createRecvTransport(params);
 
-          const consumerTransport = device.createRecvTransport(params);
-
-          consumerTransport.on(
-            "connect",
-            async ({ dtlsParameters }, callback, errback) => {
-              try {
-                newSocket.emit("connect-transport", {
-                  dtlsParameters,
-                  roomId,
-                  consumer: true,
-                });
-                callback();
-              } catch (error: any) {
-                errback(error);
+            consumerTransport.on(
+              "connect",
+              async ({ dtlsParameters }, callback, errback) => {
+                try {
+                  newSocket.emit("connect-transport", {
+                    dtlsParameters,
+                    roomId,
+                    consumer: true,
+                  });
+                  callback();
+                } catch (error: any) {
+                  errback(error);
+                }
               }
-            }
-          );
+            );
+            consumerTransportRef.current = consumerTransport;
+          }
 
-          consumerTransportRef.current = consumerTransport;
-          //TODO: Start consuming for this transport
-          await consumeReceiverTransport(consumerTransport, remoteProducerId);
+          await consumeReceiverTransport(
+            consumerTransportRef.current,
+            remoteProducerId
+          );
         }
       );
     };
