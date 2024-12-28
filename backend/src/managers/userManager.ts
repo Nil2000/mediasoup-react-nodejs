@@ -9,7 +9,8 @@ export interface Peer {
     transport: WebRtcTransport;
     consumer: boolean;
   }[];
-  // producers: Map<string, any>;
+  roomId: string;
+  producers: Map<string, any>;
   // consumers: Map<string, any>;
 }
 
@@ -36,12 +37,13 @@ export class UserManager {
     console.log("User Manager initialized");
   }
 
-  handleNewPeer(socket: Socket, displayName: string) {
+  handleNewPeer(socket: Socket, displayName: string, roomId: string) {
     const newPeer: Peer = {
       socket,
       displayName,
       transports: [],
-      // producers: new Map(),
+      roomId,
+      producers: new Map(),
       // consumers: new Map(),
     };
     this.peers.set(socket.id, newPeer);
@@ -51,6 +53,15 @@ export class UserManager {
   removePeer(socketId: string) {
     //Close all transports, producers and consumers
     if (this.peers.has(socketId)) {
+      const peer = this.peers.get(socketId);
+
+      this.roomManager.removePeerFromRoom(peer!.roomId, socketId);
+
+      this.roomManager.removeConsumerBySocketId(socketId, peer!.roomId);
+      peer?.transports.forEach((t) => {
+        t.transport.close();
+      });
+
       this.peers.delete(socketId);
       console.log("Peer removed");
     }
@@ -91,7 +102,7 @@ export class UserManager {
     )?.transport;
 
     if (transport) {
-      console.log("Transport found->", transport);
+      console.log("Transport found->", transport.id);
       return transport;
     }
 
@@ -135,29 +146,6 @@ export class UserManager {
 
     return creationPromise;
   }
-
-  // addTransportToRoom(
-  //   socketId: string,
-  //   roomId: string,
-  //   transport: WebRtcTransport,
-  //   consumer: boolean
-  // ) {
-  //   this.roomManager.addTransport(socketId, roomId, transport, consumer);
-  // }
-
-  // async connectTransportToRoom(
-  //   socketId: string,
-  //   roomId: string,
-  //   dtlsParameters: any,
-  //   consumer: boolean
-  // ) {
-  //   await this.roomManager.connectTransport(
-  //     socketId,
-  //     roomId,
-  //     dtlsParameters,
-  //     consumer
-  //   );
-  // }
 
   async connectTransport(
     socketId: string,
@@ -206,9 +194,13 @@ export class UserManager {
       rtpParameters: data.rtpParameters,
     });
 
+    peer.producers.set(producer.id, producer);
+
     producer.on("transportclose", () => {
       console.log("Producer transport closed");
       producer.close();
+
+      this.roomManager.removeProducer(producer.id, peer.roomId, socketId);
     });
 
     return producer;
@@ -253,7 +245,7 @@ export class UserManager {
     const producer = this.roomManager.getProducer(roomId, producerId);
 
     if (!producer) {
-      console.error("Producer not found");
+      console.error("CONSUME_TRANSPORT:Producer not found");
       return;
     }
 
@@ -292,13 +284,13 @@ export class UserManager {
       consumer.on("producerclose", () => {
         console.log("Producer closed");
         //TO remove from the list (frontend)
-        socket.emit("producer-closed", { producerId });
 
         consumer.close();
         this.roomManager.removeConsumer(consumer.id, roomId);
+        // this.roomManager.removeProducer(producerId, roomId, socket.id);
       });
 
-      this.roomManager.addConsumer(consumer, roomId);
+      this.roomManager.addConsumer(consumer, roomId, socket.id);
 
       return {
         id: consumer.id,

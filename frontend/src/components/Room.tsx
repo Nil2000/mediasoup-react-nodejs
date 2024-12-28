@@ -51,7 +51,7 @@ export default function Room() {
     };
 
     const createPeer = async () => {
-      newSocket.emit("create-peer", {}, () => {
+      newSocket.emit("create-peer", { roomId }, () => {
         console.log("Peer created");
       });
     };
@@ -314,6 +314,14 @@ export default function Room() {
       } catch (error) {
         console.log(error);
       }
+    });
+
+    newSocket.on("producer-closed", ({ producerId }) => {
+      console.log("Producer closed", producerId);
+      const container = document.getElementById(
+        `container_${producerId}`
+      ) as HTMLElement;
+      container.remove();
     });
 
     setSocket(newSocket);

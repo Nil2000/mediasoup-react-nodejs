@@ -24,7 +24,10 @@ export interface Room {
     consumer: boolean;
   }[];
   producers: { socketId: string; producer: Producer; kind: string }[];
-  consumers: Consumer[];
+  consumers: {
+    to: string;
+    consumer: Consumer;
+  }[];
 }
 
 const mediaCodecs: RtpCodecCapability[] = [
@@ -84,7 +87,7 @@ export class RoomManager {
     room?.peers.push(peer);
   }
 
-  removeUserFromRoom(roomId: string, socketId: string) {
+  removePeerFromRoom(roomId: string, socketId: string) {
     let room = this.getRoom(roomId);
     if (!room) {
       console.log("Room not found");
@@ -202,7 +205,7 @@ export class RoomManager {
     });
   }
 
-  addConsumer(consumer: Consumer, roomId: string) {
+  addConsumer(consumer: Consumer, roomId: string, socketId: string) {
     console.log("Consumer added");
 
     const room = this.getRoom(roomId);
@@ -211,7 +214,10 @@ export class RoomManager {
       return;
     }
 
-    room.consumers.push(consumer);
+    room.consumers.push({
+      to: socketId,
+      consumer,
+    });
   }
 
   removeConsumer(consumerId: string, roomId: string) {
@@ -222,8 +228,56 @@ export class RoomManager {
     }
 
     room.consumers = room.consumers.filter(
-      (consumer) => consumer.id !== consumerId
+      (consumer) => consumer.consumer.id !== consumerId
     );
+
+    console.log("Consumers after removal->", room.consumers);
+  }
+
+  removeConsumerBySocketId(socketId: string, roomId: string) {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+    room.consumers.forEach((consumer) => {
+      if (consumer.to === socketId) {
+        consumer.consumer.close();
+      }
+    });
+
+    room.consumers = room.consumers.filter(
+      (consumer) => consumer.to !== socketId
+    );
+
+    console.log("Consumers after removal->", room.consumers);
+  }
+
+  removeProducer(producerId: string, roomId: string, socketId: string) {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      console.error("Room not found");
+      return;
+    }
+
+    const producer = room.producers.find((p) => p.producer.id === producerId);
+
+    if (!producer) {
+      console.error("ROOMMANAGER->Producer not found");
+      return;
+    }
+
+    room.peers.forEach((peer) => {
+      if (peer.socket.id !== socketId) {
+        peer.socket.emit("producer-closed", { producerId });
+      }
+    });
+
+    room.producers = room.producers.filter(
+      (producer) => producer.producer.id !== producerId
+    );
+
+    console.log("Producers after removal->", room.producers);
   }
 
   getOtherProducerLength(socketId: string, roomId: string) {
@@ -298,7 +352,9 @@ export class RoomManager {
       return;
     }
 
-    return room.consumers.find((consumer) => consumer.id === consumerId);
+    return room.consumers.find(
+      (consumer) => consumer.consumer.id === consumerId
+    )?.consumer;
   }
 
   informAllConsumers(roomId: string, producerId: string, socketId: string) {
@@ -315,6 +371,12 @@ export class RoomManager {
       if (peer.socket.id !== socketId) {
         peer.socket.emit("new-producer", { producerId });
       }
+    });
+  }
+
+  removePeer(socketId: string) {
+    this.rooms.forEach((room) => {
+      room.peers = room.peers.filter((peer) => peer.socket.id !== socketId);
     });
   }
 }

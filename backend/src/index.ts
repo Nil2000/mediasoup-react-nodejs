@@ -23,7 +23,11 @@ connections.on("connection", (socket) => {
   });
 
   socket.on("create-peer", (data, callback) => {
-    userManager.handleNewPeer(socket, data.displayName || "Anonymous");
+    userManager.handleNewPeer(
+      socket,
+      data.displayName || "Anonymous",
+      data.roomId
+    );
     callback();
   });
 
@@ -73,7 +77,6 @@ connections.on("connection", (socket) => {
 
     userManager.addProducerToRoom(socket.id, data.roomId, producer!, data.kind);
 
-    //TODO: inform consumers
     console.log("Need to inform consumers");
 
     userManager.informAllConsumers(data.roomId, producer!.id, socket.id);
